@@ -1,0 +1,10 @@
+Window 800 600
+Font D:/Documents/Programming/C++/Study/Game_Development/1_Assignment1_ShapeBounce/Mechanic.ttf 18 0 0 255
+Circle CGreen1 0 0 -6 8 0 255 0 100
+Rectangle RRed2 640 0 10 5 255 0 0 100 150
+Circle CGreen3 0 480 -3 9 10 255 0 100
+Rectangle RRed4 640 0 8 12 255 50 0 100 150
+Circle CGreen5 10 0 -6 8 0 255 0 100
+Rectangle RRed6 0 20 10 5 255 0 0 100 150
+Circle CGreen7 30 80 -3 9 10 255 0 100
+Rectangle RRed8 40 0 8 12 255 50 0 100 150
