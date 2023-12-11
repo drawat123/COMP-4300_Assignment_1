@@ -1,96 +1,115 @@
 #include "backend.h"
 
-Backend::Backend(QObject *parent)
-    : QObject{parent}
-{}
+Backend::Backend(QQuickItem *parent, QQuickItem *root)
+    : QQuickItem{parent}
+    , m_Root(root)
+{
+    /*60 fps = 60 still images in 1000ms
+    1 still image: 1000/60 = 16.67*/
+    m_Timer.setInterval(16);
+    connect(&m_Timer, &QTimer::timeout, this, &Backend::moveShapes);
+}
 
 void Backend::readFile(QString path)
 {
+    QQmlApplicationEngine *engine = qobject_cast<QQmlApplicationEngine *>(qmlEngine(m_Root));
+    const QUrl shapeObjectUrl(u"qrc:/1_Assignment1_ShapeBounce/ShapeObject.qml"_qs);
+
     std::ifstream configFile(path.toStdString());
     if (configFile.is_open()) {
+        std::string fontFilePath;
+        int fontSize, fR, fG, fB;
         std::string entity;
         while (configFile >> entity) {
             if (entity == "Window") {
                 int width, height;
-                QVariantList list;
 
                 configFile >> width >> height;
-                list.push_back(width);
-                list.push_back(height);
 
-                emit entitySet(QString::fromStdString(entity), list);
+                m_Root->window()->setColor("black");
+                m_Root->window()->setWidth(width);
+                m_Root->window()->setHeight(height);
             } else if (entity == "Font") {
-                std::string fontFile;
-                int fontSize, r, g, b;
-                QVariantList list;
-
-                configFile >> fontFile;
-                list.push_back(QString::fromStdString(fontFile));
+                configFile >> fontFilePath;
+                fontFilePath = "file:/" + fontFilePath;
 
                 configFile >> fontSize;
-                list.push_back(fontSize);
 
-                configFile >> r >> g >> b;
-                list.push_back(r);
-                list.push_back(g);
-                list.push_back(b);
+                configFile >> fR >> fG >> fB;
+            } else if (entity == "Circle" || entity == "Rectangle") {
+                // https://stackoverflow.com/questions/26704621/how-to-create-a-qqmlcomponent-from-c-at-runtime
+                QQmlComponent component(engine, shapeObjectUrl);
+                QQuickItem *object = qobject_cast<QQuickItem *>(component.create());
 
-                emit entitySet(QString::fromStdString(entity), list);
-            } else if (entity == "Circle") {
+                QQmlEngine::setObjectOwnership(object, QQmlEngine::CppOwnership);
+
+                object->setParentItem(m_Root);
+                object->setParent(engine);
+
+                object->setProperty("fontColor", QColor(fR, fG, fB));
+                object->setProperty("fontSize", fontSize);
+                object->setProperty("fontFilePath", QString::fromStdString(fontFilePath));
+
+                m_ShapeObjects.push_back(object);
+
                 std::string name;
-                float x, y, sx, sy, radius;
+                float x, y, sx, sy, width, height, radius = 0;
                 int r, g, b;
-                QVariantList list;
 
                 configFile >> name;
-                list.push_back(QString::fromStdString(name));
+                object->setProperty("text", QString::fromStdString(name));
 
                 configFile >> x >> y;
-                list.push_back(x);
-                list.push_back(y);
+                object->setProperty("x", x);
+                object->setProperty("y", y);
 
                 configFile >> sx >> sy;
-                list.push_back(sx);
-                list.push_back(sy);
+                object->setProperty("sx", sx);
+                object->setProperty("sy", sy);
 
                 configFile >> r >> g >> b;
-                list.push_back(r);
-                list.push_back(g);
-                list.push_back(b);
+                object->setProperty("color", QColor(r, g, b));
 
-                configFile >> radius;
-                list.push_back(radius);
+                if (entity == "Circle") {
+                    configFile >> radius;
+                    width = height = radius;
+                } else {
+                    configFile >> width >> height;
+                }
 
-                emit entitySet(QString::fromStdString(entity), list);
-            } else if (entity == "Rectangle") {
-                std::string name;
-                float x, y, sx, sy, width, height;
-                int r, g, b;
-                QVariantList list;
-
-                configFile >> name;
-                list.push_back(QString::fromStdString(name));
-
-                configFile >> x >> y;
-                list.push_back(x);
-                list.push_back(y);
-
-                configFile >> sx >> sy;
-                list.push_back(sx);
-                list.push_back(sy);
-
-                configFile >> r >> g >> b;
-                list.push_back(r);
-                list.push_back(g);
-                list.push_back(b);
-
-                configFile >> width >> height;
-                list.push_back(width);
-                list.push_back(height);
-
-                emit entitySet(QString::fromStdString(entity), list);
+                object->setProperty("radius", radius);
+                object->setProperty("width", width);
+                object->setProperty("height", height);
             }
         }
-        emit startMoving();
+
+        m_Timer.start();
+    }
+}
+
+void Backend::moveShapes()
+{
+    for (int i = 0; i < m_ShapeObjects.size(); i++) {
+        QQuickItem *currShape = m_ShapeObjects[i];
+
+        double currShapeSx = currShape->property("sx").toDouble();
+        double currShapeSy = currShape->property("sy").toDouble();
+        double currShapeNewX = currShape->x() + currShapeSx;
+        double currShapeNewY = currShape->y() + currShapeSy;
+
+        if (currShapeNewX <= 0 || (currShapeNewX + currShape->width()) >= m_Root->width()) {
+            currShapeNewX = (currShapeNewX <= 0) ? 0 : m_Root->width() - currShape->width();
+            currShapeSx *= -1;
+        }
+
+        if (currShapeNewY <= 0 || (currShapeNewY + currShape->height()) >= m_Root->height()) {
+            currShapeNewY = (currShapeNewY <= 0) ? 0 : m_Root->height() - currShape->height();
+            currShapeSy *= -1;
+        }
+
+        currShape->setX(currShapeNewX);
+        currShape->setY(currShapeNewY);
+        currShape->setProperty("sx", currShapeSx);
+        currShape->setProperty("sy", currShapeSy);
     }
 }
